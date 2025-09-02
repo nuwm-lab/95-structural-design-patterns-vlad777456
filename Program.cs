@@ -1,48 +1,61 @@
+/// <summary>
+/// Приклад реалізації структурного патерну «Адаптер».
+/// Завдання: інтегрувати стару бібліотеку в сучасний проєкт.
+/// </summary>
 using System;
 
-namespace AdapterPattern
+// ================= Стара бібліотека =================
+namespace LegacyLibrary
 {
     /// <summary>
-    /// Приклад клієнтського інтерфейсу — що хоче бачити сучасний код.
-    /// </summary>
-    public interface IRenderer
-    {
-        /// <summary>
-        /// Намалювати спрайт з іменем на позиції (x,y).
-        /// </summary>
-        void RenderSprite(string spriteName, int x, int y);
-    }
-
-    // ------------------ "Стара" бібліотека (Legacy) ------------------
-    // У реальному житті це може бути стороння DLL, код якої ви не можете змінити.
-    /// <summary>
-    /// Умовна стара графічна бібліотека з відмінним API.
+    /// Стара бібліотека для рендерингу, яку потрібно адаптувати.
+    /// Має свій власний інтерфейс.
     /// </summary>
     public class OldRenderingEngine
     {
-        // Старе API приймає байтовий масив з зображенням і координати у форматі float.
-        public void DrawImage(byte[] imageData, float posX, float posY)
+        public void DrawImage(string fileName)
         {
-            // Симуляція роботи старого двигуна
-            Console.WriteLine($"Old engine drawing image ({imageData?.Length ?? 0} bytes) at ({posX},{posY})");
+            Console.WriteLine($"[Legacy] Малюю зображення з файлу: {fileName}");
         }
 
-        // Додатковий метод — наприклад, завантаження текстури за назвою
-        public byte[] LoadTextureByName(string name)
+        public void DrawText(string text)
         {
-            // У реальній бібліотеці тут був би код, який читає файл/ресурс.
-            if (string.IsNullOrEmpty(name))
-                throw new ArgumentException("Texture name cannot be null or empty.");
-
-            // Повертаємо умовні дані картинки
-            return System.Text.Encoding.UTF8.GetBytes(name);
+            Console.WriteLine($"[Legacy] Вивід тексту: {text}");
         }
     }
+}
 
-    // ------------------ Adapter ------------------
+// ================= Сучасний інтерфейс =================
+namespace ModernApp
+{
     /// <summary>
-    /// Адаптер дозволяє використовувати OldRenderingEngine через сучасний IRenderer інтерфейс.
-    /// Використовує композицію (краща практика при адаптації зовнішніх бібліотек).
+    /// Сучасний інтерфейс рендерингу, який очікує клієнтський код.
+    /// </summary>
+    public interface IRenderer
+    {
+        void RenderImage(string path);
+        void RenderText(string content);
+    }
+
+    /// <summary>
+    /// Сучасна реалізація рендерера.
+    /// </summary>
+    public class ModernRenderer : IRenderer
+    {
+        public void RenderImage(string path) => Console.WriteLine($"[Modern] Rendering image from {path}");
+
+        public void RenderText(string content) => Console.WriteLine($"[Modern] Rendering text: {content}");
+    }
+}
+
+// ================= Адаптер =================
+namespace AdapterImplementation
+{
+    using LegacyLibrary;
+    using ModernApp;
+
+    /// <summary>
+    /// Адаптер, що дозволяє використовувати стару бібліотеку через сучасний інтерфейс.
     /// </summary>
     public class OldEngineAdapter : IRenderer
     {
@@ -53,65 +66,51 @@ namespace AdapterPattern
             _oldEngine = oldEngine ?? throw new ArgumentNullException(nameof(oldEngine));
         }
 
-        /// <summary>
-        /// Перетворює виклик RenderSprite на відповідні виклики старого API.
-        /// Тут можна додавати кешування текстур, масштабування, логування тощо.
-        /// </summary>
-        public void RenderSprite(string spriteName, int x, int y)
+        public void RenderImage(string path)
         {
-            if (string.IsNullOrWhiteSpace(spriteName))
-                throw new ArgumentException("Sprite name cannot be null or whitespace.", nameof(spriteName));
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                Console.WriteLine("[Adapter] Некоректний шлях до файлу!");
+                return;
+            }
+            _oldEngine.DrawImage(path);
+        }
 
-            // Приклад простої адаптації: завантажити текстуру старим методом і намалювати її
-            byte[] texture = _oldEngine.LoadTextureByName(spriteName);
-
-            // Конвертуємо координати int -> float, тут можна додати масштабування або офсет
-            float posX = x;
-            float posY = y;
-
-            _oldEngine.DrawImage(texture, posX, posY);
+        public void RenderText(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                Console.WriteLine("[Adapter] Некоректний текст!");
+                return;
+            }
+            _oldEngine.DrawText(content);
         }
     }
+}
 
-    // ------------------ Сучасна реалізація рендера (для порівняння) ------------------
-    /// <summary>
-    /// Сучасна реалізація IRenderer — для демонстрації, як працює код без адаптера.
-    /// </summary>
-    public class ModernRenderer : IRenderer
+// ================= Клієнтський код =================
+namespace AdapterDemo
+{
+    using LegacyLibrary;
+    using ModernApp;
+    using AdapterImplementation;
+
+    internal class Program
     {
-        public void RenderSprite(string spriteName, int x, int y)
+        private static void Main()
         {
-            if (string.IsNullOrWhiteSpace(spriteName))
-                throw new ArgumentException("Sprite name cannot be null or whitespace.", nameof(spriteName));
+            // Використання сучасного рендерера
+            IRenderer modernRenderer = new ModernRenderer();
+            modernRenderer.RenderImage("hero.png");
+            modernRenderer.RenderText("Hello, modern world!");
 
-            Console.WriteLine($"Modern renderer draws '{spriteName}' at ({x},{y})");
-        }
-    }
+            Console.WriteLine("============================");
 
-    // ------------------ Client code ------------------
-    public static class Program
-    {
-        public static void Main()
-        {
-            // Клієнтський код працює з IRenderer і не знає про те, що під володіє адаптером
-            IRenderer modern = new ModernRenderer();
-            modern.RenderSprite("hero_idle", 10, 20);
-
-            // Використання старої бібліотеки через адаптер
+            // Використання старого рендерера через адаптер
             var oldEngine = new OldRenderingEngine();
-            IRenderer adapted = new OldEngineAdapter(oldEngine);
-            adapted.RenderSprite("enemy_attack", 50, 60);
-
-            // Перевага: весь код, який очікує IRenderer, може працювати з адаптером
-            RenderSceneWithRenderer(modern);
-            RenderSceneWithRenderer(adapted);
-        }
-
-        private static void RenderSceneWithRenderer(IRenderer renderer)
-        {
-            // Демонстраційна сцена
-            renderer.RenderSprite("tree", 5, 5);
-            renderer.RenderSprite("rock", 7, 12);
+            IRenderer adapter = new OldEngineAdapter(oldEngine);
+            adapter.RenderImage("legacy_map.jpg");
+            adapter.RenderText("Привіт зі старої бібліотеки!");
         }
     }
 }
